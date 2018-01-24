@@ -2,7 +2,8 @@
 
 ;;;; Clojure's treading macros showcase.
 ;;;;
-;;;; `->`, `->>`, `as->``some->`, `some->>`, `cond->`, `cond->>`
+;;;; `->`, `->>`, `as->`,
+;;;; `some->`, `some->>`, `cond->`, `cond->>`
 ;;;; 
 ;;;; They help to convert nested fn calls into linear flow
 ;;;; of function calls. 
@@ -81,4 +82,93 @@
   (filter #(< (:age %) 4) $)
   (map :name $))
 
+
+
+;;; 4. `some->`
+(defn add-bonus [salary bonus-percents]
+  (* salary
+     (+ 1 (/ bonus-percents 100))))
+
+;; our function works OK on a person with salary
+(-> person
+    :work
+    :salary
+    (add-bonus 20))
+
+;; person withotu salary => NPE!
+(-> unemployed
+    :work
+    :salary
+    (add-bonus 20))
+
+;; let's fix NPE with `some->`
+(some-> unemployed
+        :work
+        :salary
+        (add-bonus 20))
+
+(some-> person
+        :work
+        :salary
+        (add-bonus 20))
+
+
+;;; 5. use `some->>`
+;;; if we have a functions that expect
+;;; the argument in the last position
+(defn assign-to-position [position work]
+  (assoc work :position position))
+
+(->> person
+     :work
+     (assign-to-position :director))
+
+;; doesn't fail but we end up with a strange result
+;; (map containing only the `:position` key)
+(->> unemployed
+     :work
+     (assign-to-position :director))
+
+;; we prefer to get nil if person has no work at all!
+(some->> unemployed
+         :work
+         (assign-to-position :director))
+
+
+
+;;; 6. `cond->`
+;;; Thread a value through ALL expressions with passing test
+;;; The CIDER debugger can be useful for investigation
+(defn elixir-of-life? [person]
+  (let [children (:children person)]
+    (or (not children)
+        (< (count children) 2))))
+
+(defn parent? [p]
+  (some? (:children p)))
+
+
+;; elixir has no effect, but salary is increased
+(cond-> person
+  (elixir-of-life? person) (update-in [:age] dec)
+  (parent? person) (update-in [:work :salary] #(* % 2))
+  (> (:age person) 30) (assoc :tag :old))
+
+;; no work & salary, but elixir takes effect
+(cond-> unemployed
+  (elixir-of-life? unemployed) (update-in [:age] dec)
+  (parent? unemployed) (update-in [:work :salary] #(* % 2))
+  (> (:age unemployed) 30) (assoc :tag :old))
+
+
+
+;;; 7. `cond->>` is like `cond->`
+;;; but inserts threaded value as the last argument
+
+(defn make-brave [brave-tag person]
+  (assoc person :tag brave-tag))
+
+(cond->> (:children person)
+  (> (-> person :work :salary) 49000) (cons {:name "Orphan" :age 15})
+  (parent? person) (filter #(< 3 (:age %))))
 
